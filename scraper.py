@@ -1,15 +1,14 @@
 """
-scraper.py — Browserless Edition (Render-ready)
------------------------------------------------
-Connects to a remote Browserless Chrome instance over CDP.
+scraper.py — Render Docker Edition (headless Chromium)
+------------------------------------------------------
+Launches Chromium inside the container, runs the ytshortdown.com flow,
+and returns the real .mp4 URL.
 
-- No local browser, no PLAYWRIGHT_BROWSERS_PATH.
-- Reads BROWSERLESS_API_TOKEN from environment (set on Render dashboard)
-  or from a .env file for local development.
-- Single tab only. Never opens a second tab.
-- Does NOT click "Fetch Video" — the site auto-fetches after typing.
-
-Prints only short step tags + the final URL.
+Key differences from the Browserless version:
+    - Uses chromium.launch() instead of connect_over_cdp()
+    - headless=True (no display available on Render)
+    - --no-sandbox and --disable-dev-shm-usage are required
+    - No BROWSERLESS_API_TOKEN needed
 """
 
 import os
@@ -18,7 +17,7 @@ import re
 import json
 from urllib.parse import urlparse, urljoin, unquote
 
-# Load .env if present (local dev only; on Render, use dashboard env vars)
+# Load .env for local dev only; on Render we use env vars from the dashboard.
 try:
     from dotenv import load_dotenv
     load_dotenv()
@@ -26,18 +25,6 @@ except Exception:
     pass
 
 from playwright.async_api import async_playwright, TimeoutError as PWTimeoutError
-
-
-# ---------------------------------------------------------------------------
-# Browserless connection
-# ---------------------------------------------------------------------------
-BROWSERLESS_TOKEN = os.environ.get("BROWSERLESS_API_TOKEN", "").strip()
-
-BROWSERLESS_ENDPOINT = (
-    f"wss://production-sfo.browserless.io?token={BROWSERLESS_TOKEN}"
-    if BROWSERLESS_TOKEN
-    else ""
-)
 
 
 # ---------------------------------------------------------------------------
@@ -170,15 +157,21 @@ def _urls_from_json(text: str) -> list[tuple[int, str]]:
 
 
 # ---------------------------------------------------------------------------
-# Browserless
+# Browser launch — headless Chromium in the container
 # ---------------------------------------------------------------------------
 async def _launch_chrome(p):
-    if not BROWSERLESS_ENDPOINT:
-        raise RuntimeError(
-            "BROWSERLESS_API_TOKEN is missing. "
-            "Set it in the Render dashboard (Environment tab)."
-        )
-    return await p.chromium.connect_over_cdp(BROWSERLESS_ENDPOINT)
+    """
+    Launch headless Chromium inside the Render Docker container.
+    --no-sandbox is mandatory because the container runs as root.
+    """
+    return await p.chromium.launch(
+        headless=True,
+        args=[
+            "--no-sandbox",
+            "--disable-dev-shm-usage",
+            "--disable-blink-features=AutomationControlled",
+        ],
+    )
 
 
 async def _first_visible(page, getters, per_try_timeout=1500):
@@ -253,31 +246,19 @@ async def fetch_download_url(short_url: str, quality: str = "1080p",
 
     async with async_playwright() as p:
         browser = await _launch_chrome(p)
-
-        # ------------------------------------------------------------------
-        # STRICT ONE TAB
-        # ------------------------------------------------------------------
-        context = browser.contexts[0] if browser.contexts else await browser.new_context()
-
-        if context.pages:
-            page = context.pages[0]
-            for extra in context.pages[1:]:
-                try:
-                    await extra.close()
-                except Exception:
-                    pass
-        else:
-            page = await context.new_page()
-
-        try:
-            await page.goto("about:blank",
-                            wait_until="domcontentloaded",
-                            timeout=3000)
-        except Exception:
-            pass
-
+        context = await browser.new_context(
+            user_agent=("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                        "AppleWebKit/537.36 (KHTML, like Gecko) "
+                        "Chrome/120.0.0.0 Safari/537.36"),
+            locale="en-US",
+            accept_downloads=True,
+        )
+        page = await context.new_page()
         page.set_default_timeout(timeout_ms)
 
+        # ------------------------------------------------------------------
+        # Network interception
+        # ------------------------------------------------------------------
         async def on_response(response):
             try:
                 url = response.url
@@ -309,34 +290,44 @@ async def fetch_download_url(short_url: str, quality: str = "1080p",
             await page.goto("https://ytshortdown.com/",
                             wait_until="domcontentloaded",
                             timeout=timeout_ms)
+            await page.wait_for_timeout(2000)
 
             # --- TYPE ---
+            # Give the page up to 15 s to render the input (headless is slower).
             print("[type]")
             search_box = None
             loop = asyncio.get_event_loop()
-            deadline = loop.time() + 5
+            deadline = loop.time() + 15
             input_locators = [
                 lambda: page.getByRole("searchbox",
                                        name="Paste your YouTube Shorts URL here..."),
                 lambda: page.getByPlaceholder("Paste your YouTube Shorts URL here..."),
+                lambda: page.getByPlaceholder(re.compile("Paste.*URL", re.I)),
                 lambda: page.locator('input[type="search"]').first,
                 lambda: page.locator('input[type="url"]').first,
                 lambda: page.locator('input[name*="url" i]').first,
+                lambda: page.locator('input[placeholder*="Short" i]').first,
                 lambda: page.locator("form input[type='text']").first,
                 lambda: page.locator("input").first,
             ]
             while search_box is None and loop.time() < deadline:
                 search_box = await _first_visible(
-                    page, input_locators, per_try_timeout=250)
+                    page, input_locators, per_try_timeout=500)
                 if search_box is None:
-                    await page.wait_for_timeout(250)
+                    await page.wait_for_timeout(500)
 
             if search_box is None:
+                html = await page.content()
+                title = await page.title()
+                print(f"[fail] URL input not found. url={page.url} "
+                      f"title={title!r} html_len={len(html)}")
                 raise RuntimeError("URL input not found.")
+
             await search_box.click()
             await search_box.fill(short_url)
 
-            # --- FETCH (auto-load — no button click) ---
+            # --- FETCH ---
+            # The site auto-fetches after typing — do NOT click the button.
             print("[fetch]")
             auto_loaded = False
             try:
@@ -477,8 +468,14 @@ async def fetch_download_url(short_url: str, quality: str = "1080p",
         except Exception as e:
             result["error"] = f"{type(e).__name__}: {e}"
         finally:
-            # Leave the tab open — Browserless closes the session on disconnect.
-            pass
+            try:
+                await context.close()
+            except Exception:
+                pass
+            try:
+                await browser.close()
+            except Exception:
+                pass
 
     return result
 
@@ -496,10 +493,6 @@ def get_download_url(short_url: str, quality: str = "1080p") -> dict:
 # CLI
 # ---------------------------------------------------------------------------
 if __name__ == "__main__":
-    if not BROWSERLESS_TOKEN:
-        print("[fail] BROWSERLESS_API_TOKEN is not set.")
-        raise SystemExit(1)
-
     url = input("Enter a YouTube Shorts URL: ").strip()
     if url:
         get_download_url(url, "1080p")

@@ -1,12 +1,10 @@
 """
 app.py — Render-ready Flask API + web UI.
-
 Reads PORT from environment (Render sets this automatically).
 """
 
 import os
 
-# Load .env for local dev
 try:
     from dotenv import load_dotenv
     load_dotenv()
@@ -26,7 +24,6 @@ API_NAME    = "ytshortdown-scraper"
 API_VERSION = "1.0.0"
 
 API_KEY = os.environ.get("SCRAPER_API_KEY", "").strip()
-
 ALLOWED_QUALITIES = {"360p", "480p", "720p", "1080p"}
 
 
@@ -98,13 +95,11 @@ def fetch():
 
     if not short_url:
         return _json_error("url is required", quality=quality)
-
     if not ("youtube.com" in short_url or "youtu.be" in short_url):
         return _json_error(
             "Only YouTube / YouTube Shorts URLs are supported.",
             quality=quality,
         )
-
     if quality not in ALLOWED_QUALITIES:
         return _json_error(
             f"quality must be one of: {', '.join(sorted(ALLOWED_QUALITIES))}",
@@ -116,22 +111,15 @@ def fetch():
     except Exception as e:
         return _json_error(f"{type(e).__name__}: {e}", quality=quality)
 
-    response = {
+    return jsonify({
         "success":      bool(result.get("success")),
         "download_url": result.get("download_url"),
         "quality":      result.get("quality") or quality,
         "source":       result.get("source"),
         "error":        result.get("error"),
-    }
-    return jsonify(response), 200
+    }), 200
 
 
 if __name__ == "__main__":
-    # Local dev: 5000. On Render, PORT is provided automatically.
     port = int(os.environ.get("PORT", 10000))
-    app.run(
-        debug=False,
-        use_reloader=False,
-        host="0.0.0.0",
-        port=port,
-    )
+    app.run(host="0.0.0.0", port=port, debug=False, use_reloader=False)
