@@ -1,0 +1,316 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+body {
+  background: linear-gradient(145deg, #0f172a 0%, #1e293b 100%);
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+}
+
+.card {
+  max-width: 720px;
+  width: 100%;
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 2rem;
+  padding: 2rem 2rem 2.5rem;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.8);
+}
+
+h1 {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 1.8rem;
+  color: #f1f5f9;
+  margin-bottom: 0.5rem;
+}
+
+h1 i {
+  color: #ff3e3e;
+  font-size: 2rem;
+}
+
+.subhead {
+  color: #94a3b8;
+  font-size: 1rem;
+  margin-bottom: 2rem;
+  border-left: 3px solid #ff3e3e;
+  padding-left: 1rem;
+  line-height: 1.5;
+}
+
+.input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+
+.input-wrapper,
+.select-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.input-wrapper i,
+.select-wrapper i {
+  position: absolute;
+  left: 1.2rem;
+  color: #64748b;
+  pointer-events: none;
+}
+
+.input-wrapper input,
+.select-wrapper select {
+  width: 100%;
+  padding: 1rem 1rem 1rem 3.2rem;
+  background: rgba(15, 23, 42, 0.8);
+  border: 1px solid #334155;
+  border-radius: 3rem;
+  font-size: 1rem;
+  color: #f1f5f9;
+  outline: none;
+  transition: all 0.2s;
+}
+
+.input-wrapper input:focus,
+.select-wrapper select:focus {
+  border-color: #ff3e3e;
+  box-shadow: 0 0 0 3px rgba(255, 62, 62, 0.25);
+}
+
+.select-wrapper select {
+  appearance: none;
+  cursor: pointer;
+}
+
+.select-wrapper::after {
+  content: "\f078";
+  font-family: "Font Awesome 6 Free";
+  font-weight: 900;
+  position: absolute;
+  right: 1.2rem;
+  color: #64748b;
+  pointer-events: none;
+}
+
+button#fetchBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  padding: 1rem;
+  background: linear-gradient(135deg, #ff3e3e, #e11d48);
+  color: white;
+  border: none;
+  border-radius: 3rem;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+
+button#fetchBtn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 20px -8px #ff3e3e;
+}
+
+button#fetchBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.hidden { display: none !important; }
+
+/* Loading */
+#loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  padding: 1.5rem 0;
+  color: #94a3b8;
+  text-align: center;
+}
+
+#loading small {
+  color: #64748b;
+  font-size: 0.85rem;
+}
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid rgba(255, 255, 255, 0.1);
+  border-top-color: #ff3e3e;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Result */
+#result {
+  background: rgba(34, 197, 94, 0.08);
+  border: 1px solid rgba(34, 197, 94, 0.3);
+  border-radius: 1.5rem;
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 1rem;
+  text-align: center;
+}
+
+.result-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  color: #4ade80;
+  font-weight: 600;
+}
+
+.quality-badge {
+  align-self: center;
+  background: rgba(255, 255, 255, 0.1);
+  color: #f1f5f9;
+  padding: 0.25rem 1rem;
+  border-radius: 2rem;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.download-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  padding: 0.9rem 2rem;
+  background: linear-gradient(135deg, #22c55e, #16a34a);
+  color: white;
+  text-decoration: none;
+  border-radius: 3rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+
+.download-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 20px -8px #22c55e;
+}
+
+/* URL display block */
+.url-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  text-align: left;
+  margin-top: 0.5rem;
+}
+
+.url-block label {
+  font-size: 0.8rem;
+  color: #94a3b8;
+  letter-spacing: 0.02em;
+}
+
+.url-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: stretch;
+}
+
+.url-output {
+  flex: 1;
+  padding: 0.75rem 1rem;
+  background: rgba(15, 23, 42, 0.85);
+  border: 1px solid #334155;
+  border-radius: 0.75rem;
+  color: #f1f5f9;
+  font-size: 0.85rem;
+  font-family: "Consolas", "Monaco", monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: text;
+}
+
+.url-output:focus {
+  border-color: #22c55e;
+  box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.2);
+  outline: none;
+}
+
+.copy-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid #334155;
+  border-radius: 0.75rem;
+  color: #cbd5e1;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-size: 0.95rem;
+}
+
+.copy-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: white;
+}
+
+.copy-btn.copied {
+  background: rgba(34, 197, 94, 0.2);
+  border-color: #22c55e;
+  color: #4ade80;
+}
+
+.open-tab-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.6rem 1.2rem;
+  background: transparent;
+  color: #94a3b8;
+  border: 1px solid #334155;
+  border-radius: 3rem;
+  text-decoration: none;
+  font-size: 0.85rem;
+  font-weight: 500;
+  transition: all 0.15s;
+}
+
+.open-tab-btn:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: #f1f5f9;
+  border-color: #64748b;
+}
+
+/* Error */
+#errorBox {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  color: #fca5a5;
+  padding: 1rem 1.2rem;
+  border-radius: 1rem;
+  font-size: 0.95rem;
+  word-break: break-word;
+}

@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>YouTube Shorts Downloader</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+</head>
+<body>
+  <div class="card">
+    <h1><i class="fa-brands fa-youtube"></i> Shorts Downloader</h1>
+    <p class="subhead">
+      Paste a YouTube Shorts link, pick a quality, and get the direct MP4 link.
+      A real Chrome window will open on the server and fetch the link for you.
+    </p>
+
+    <form id="downloadForm">
+      <div class="input-group">
+        <div class="input-wrapper">
+          <i class="fa-solid fa-link"></i>
+          <input
+            type="text"
+            id="urlInput"
+            placeholder="Paste your YouTube Shorts URL here..."
+            autocomplete="off"
+            required
+          />
+        </div>
+
+        <div class="select-wrapper">
+          <i class="fa-solid fa-gauge-high"></i>
+          <select id="qualitySelect">
+            <option value="1080p" selected>1080p (Full HD)</option>
+            <option value="720p">720p (HD)</option>
+            <option value="480p">480p</option>
+            <option value="360p">360p</option>
+          </select>
+        </div>
+
+        <button type="submit" id="fetchBtn">
+          <i class="fa-solid fa-bolt"></i>
+          <span>Fetch Video</span>
+        </button>
+      </div>
+    </form>
+
+    <!-- Loading state -->
+    <div id="loading" class="hidden">
+      <div class="spinner"></div>
+      <p>
+        Opening Chrome on the server and fetching your link…<br />
+        <small>Watch the Chrome window that just opened.</small>
+      </p>
+    </div>
+
+    <!-- Result -->
+    <div id="result" class="hidden">
+      <div class="result-header">
+        <i class="fa-solid fa-circle-check"></i>
+        <span>Your download link is ready</span>
+      </div>
+
+      <div class="quality-badge" id="qualityBadge">1080p</div>
+
+      <!-- Direct click-to-download button -->
+      <a id="downloadBtn" class="download-btn" href="#" target="_blank" rel="noopener">
+        <i class="fa-solid fa-download"></i>
+        DOWNLOAD
+      </a>
+
+      <!-- Raw URL — visible + copyable -->
+      <div class="url-block">
+        <label for="urlOutput">Direct link (copy &amp; paste):</label>
+        <div class="url-row">
+          <input
+            type="text"
+            id="urlOutput"
+            class="url-output"
+            readonly
+            spellcheck="false"
+          />
+          <button type="button" id="copyBtn" class="copy-btn" title="Copy to clipboard">
+            <i class="fa-solid fa-copy"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Open in a new tab as a fallback -->
+      <a id="openTabBtn" class="open-tab-btn" href="#" target="_blank" rel="noopener">
+        <i class="fa-solid fa-arrow-up-right-from-square"></i>
+        Open in new tab
+      </a>
+    </div>
+
+    <!-- Error -->
+    <div id="errorBox" class="hidden">
+      <i class="fa-solid fa-triangle-exclamation"></i>
+      <span id="errorMsg">Something went wrong.</span>
+    </div>
+  </div>
+
+  <script>
+    const form       = document.getElementById("downloadForm");
+    const urlInput   = document.getElementById("urlInput");
+    const qualitySel = document.getElementById("qualitySelect");
+    const fetchBtn   = document.getElementById("fetchBtn");
+    const loading    = document.getElementById("loading");
+    const result     = document.getElementById("result");
+    const errorBox   = document.getElementById("errorBox");
+    const errorMsg   = document.getElementById("errorMsg");
+    const downloadBtn = document.getElementById("downloadBtn");
+    const openTabBtn  = document.getElementById("openTabBtn");
+    const urlOutput  = document.getElementById("urlOutput");
+    const copyBtn    = document.getElementById("copyBtn");
+    const qualityBadge = document.getElementById("qualityBadge");
+
+    const show = el => el.classList.remove("hidden");
+    const hide = el => el.classList.add("hidden");
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+
+      const url = urlInput.value.trim();
+      const quality = qualitySel.value;
+      if (!url) return;
+
+      // Reset UI
+      hide(result);
+      hide(errorBox);
+      show(loading);
+      fetchBtn.disabled = true;
+      fetchBtn.querySelector("span").textContent = "Fetching…";
+
+      try {
+        const res = await fetch("/api/fetch", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url, quality }),
+        });
+
+        const data = await res.json();
+
+        if (data.success && data.download_url) {
+          // Populate everything with the direct URL
+          downloadBtn.href      = data.download_url;
+          openTabBtn.href       = data.download_url;
+          urlOutput.value       = data.download_url;
+          qualityBadge.textContent = data.quality || quality;
+
+          // Auto-select the URL text so it's one click to copy
+          urlOutput.focus();
+          urlOutput.select();
+
+          show(result);
+
+          // Log to console as well (easy copy from DevTools)
+          console.log("%cDownload URL:", "color:#22c55e;font-weight:bold", data.download_url);
+        } else {
+          errorMsg.textContent = data.error || "Failed to fetch download link.";
+          show(errorBox);
+        }
+      } catch (err) {
+        errorMsg.textContent = "Network error: " + err.message;
+        show(errorBox);
+      } finally {
+        hide(loading);
+        fetchBtn.disabled = false;
+        fetchBtn.querySelector("span").textContent = "Fetch Video";
+      }
+    });
+
+    // Copy-to-clipboard button
+    copyBtn.addEventListener("click", async () => {
+      const text = urlOutput.value;
+      if (!text) return;
+      try {
+        await navigator.clipboard.writeText(text);
+      } catch {
+        // Fallback for older browsers / non-secure contexts
+        urlOutput.select();
+        document.execCommand("copy");
+      }
+      const original = copyBtn.innerHTML;
+      copyBtn.innerHTML = '<i class="fa-solid fa-check"></i>';
+      copyBtn.classList.add("copied");
+      setTimeout(() => {
+        copyBtn.innerHTML = original;
+        copyBtn.classList.remove("copied");
+      }, 1500);
+    });
+  </script>
+</body>
+</html>
